@@ -751,8 +751,8 @@ internal sealed class CompanionPanel
         if (!autoEnabled || autoSuspended || SolverBridge.Owned) return;
         if (autoPending.Length > 0 || autoWait > 0)
         {
-            if (next.Room is { } waiting && waiting.Options.Length > 0)
-                GD.Print($"[SpireCompanion] auto_skip pending={autoPending.Length > 0} wait={autoWait:F2} kind={waiting.Kind}");
+            if (autoWait > 0 && next.Room is { } waiting && waiting.Options.Length > 0)
+                GD.Print($"[SpireCompanion] auto_wait wait={autoWait:F2} kind={waiting.Kind}");
             return;
         }
         var room = next.Room;
@@ -858,6 +858,7 @@ internal sealed class CompanionPanel
     private async Task DecideAsync(GameSnapshot snapshot, RoomOptionView[] options, int required, string directive, string runPlan, string playerContext, CancellationToken token)
     {
         var ids = options.Select(option => option.Id).ToArray();
+        var skipVetoed = false;
         for (int attempt = 0; attempt < 2; attempt++)
         {
             try
@@ -866,6 +867,18 @@ internal sealed class CompanionPanel
                 var (id, ranked, reason) = ChoiceParser.ParseWithIds(reply, ids);
                 if (id != null)
                 {
+                    // Guard rail: a thin deck must never decline a card reward. The model reads the
+                    // "30 card cap" as "pick as little as possible" and skips every early reward,
+                    // leaving the run with no damage. Re-ask once with skip removed from the options.
+                    if (id == "skip" && !skipVetoed && ShouldVetoRewardSkip(snapshot))
+                    {
+                        skipVetoed = true;
+                        options = options.Where(option => option.Id != "skip").ToArray();
+                        ids = options.Select(option => option.Id).ToArray();
+                        GD.Print($"[SpireCompanion] reward_skip_veto deck={snapshot.Deck.Length} reason={reason}");
+                        attempt--;
+                        continue;
+                    }
                     // Multi-card screens: ask for the remaining picks instead of stopping at one.
                     if (required > 1 && ranked.Length < required)
                     {
@@ -920,6 +933,12 @@ internal sealed class CompanionPanel
     }
 
     private static string Truncate(string value) => value.Length <= 200 ? value : value[..200];
+
+    /// <summary>Reward skip stays a real option, but never while the deck is still thin.</summary>
+    private static bool ShouldVetoRewardSkip(GameSnapshot snapshot) =>
+        snapshot.Room is { Kind: "Reward" } && snapshot.Deck.Length < RewardSkipFloor;
+
+    private const int RewardSkipFloor = 20;
 
     private void StopAutoWith(string notice)
     {
