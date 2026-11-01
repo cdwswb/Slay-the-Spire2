@@ -879,6 +879,19 @@ internal sealed class CompanionPanel
                         attempt--;
                         continue;
                     }
+                    // Hard ceiling: the model keeps taking cards forever once it is allowed to.
+                    // Past the cap, turn the choice into a binary keep/skip question where skip is
+                    // the default, so only genuinely run-defining cards get through.
+                    if (id != "skip" && ShouldCheckDeckCap(snapshot, options))
+                    {
+                        var cardName = options.FirstOrDefault(option => option.Id == id)?.Name ?? id;
+                        if (!await AllowOverCapAsync(snapshot, cardName, token).ConfigureAwait(false))
+                        {
+                            GD.Print($"[SpireCompanion] reward_cap_skip deck={snapshot.Deck.Length} card={cardName}");
+                            mainQueue.Enqueue(() => ApplyAuto(snapshot, ["skip"], "牌组已达上限"));
+                            return;
+                        }
+                    }
                     // Multi-card screens: ask for the remaining picks instead of stopping at one.
                     if (required > 1 && ranked.Length < required)
                     {
@@ -938,7 +951,40 @@ internal sealed class CompanionPanel
     private static bool ShouldVetoRewardSkip(GameSnapshot snapshot) =>
         snapshot.Room is { Kind: "Reward" } && snapshot.Deck.Length is > 0 and < RewardSkipFloor;
 
+    /// <summary>Past the deck ceiling every reward has to pass a keep/skip gate (needs a real skip button).</summary>
+    private static bool ShouldCheckDeckCap(GameSnapshot snapshot, RoomOptionView[] options) =>
+        snapshot.Room is { Kind: "Reward" } && snapshot.Deck.Length >= RewardDeckCap &&
+        options.Any(option => option.Id == "skip");
+
+    /// <summary>Ask a narrow yes/no question: is this card worth exceeding the deck ceiling for?</summary>
+    private async Task<bool> AllowOverCapAsync(GameSnapshot snapshot, string cardName, CancellationToken token)
+    {
+        var deck = snapshot.Deck.Length;
+        var gate = new[]
+        {
+            new RoomOptionView("keep", $"拿走「{cardName}」，牌组变成 {deck + 1} 张", "超过牌组上限", false),
+            new RoomOptionView("skip", "跳过这张奖励", $"牌组保持 {deck} 张", false)
+        };
+        try
+        {
+            var reply = await chat.DecideAsync(snapshot, gate, 1,
+                $"牌组已有 {deck} 张，达到 {RewardDeckCap} 张上限。只有当「{cardName}」属于质变级必抓牌" +
+                "（流派核心或能直接决定胜负的关键牌，例如祭品、恶魔形态、壁垒这类）时才选 keep，其余一律选 skip。",
+                token, "", "").ConfigureAwait(false);
+            var (id, _, reason) = ChoiceParser.ParseWithIds(reply, gate.Select(option => option.Id).ToArray());
+            GD.Print($"[SpireCompanion] reward_cap_gate deck={deck} card={cardName} id={id} reason={reason}");
+            return id != "skip";
+        }
+        catch (Exception error)
+        {
+            // Never block the run on a failed gate: fall back to the model's original pick.
+            GD.PushWarning($"[SpireCompanion] reward_cap_gate_failed: {error.Message}");
+            return true;
+        }
+    }
+
     private const int RewardSkipFloor = 20;
+    private const int RewardDeckCap = 30;
 
     private void StopAutoWith(string notice)
     {

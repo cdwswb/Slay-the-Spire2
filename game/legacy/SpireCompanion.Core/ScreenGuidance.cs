@@ -23,9 +23,7 @@ public static class ScreenGuidance
         "Shop" =>
             "当前是商店界面：先看金币与 Room.Options 里每件的价格，按“现在最缺什么”排序；" +
             "价格高于金币或已售出的项要明确指出，允许建议这次不买、把钱留给删牌或下一个商店。",
-        "Rest" =>
-            "当前是休息点界面：比较休息回血与升级，结合当前血量、卡组里最关键的待升级牌和接下来的楼层给一个选择；" +
-            "只推荐 Room.Options 里可用的选项。",
+        "Rest" => RestGuidance(snapshot),
         "Select" =>
             "当前是选牌界面（锻造、删牌或事件要求选择卡牌）：从 Room.Options 里挑一张，说明它会带来什么、放弃其他候选的代价；" +
             "选中后还需要确认，没确认前可以改选。只推荐列表内的牌。",
@@ -42,4 +40,16 @@ public static class ScreenGuidance
             "不要推断未列出的节点或未探索区域。",
         _ => snapshot.Cards.Length > 0 || snapshot.Enemies.Length > 0 ? Combat : General
     };
+
+    /// <summary>Rest-site advice must follow the HP ratio, otherwise the model heals at full health.</summary>
+    private static string RestGuidance(GameSnapshot snapshot)
+    {
+        var ratio = snapshot.MaxHp > 0 ? (double)snapshot.Hp / snapshot.MaxHp : 1;
+        var hint = ratio >= 0.6
+            ? $"当前血量 {snapshot.Hp}/{snapshot.MaxHp}，血量健康——不要为了回血放弃升级，优先升级卡组里最关键、升级收益最大的牌。"
+            : ratio <= 0.4
+                ? $"当前血量 {snapshot.Hp}/{snapshot.MaxHp}，血线吃紧——优先休息回血，除非接下来没有战斗或容错足够。"
+                : $"当前血量 {snapshot.Hp}/{snapshot.MaxHp}，回血和升级都可以——看升级收益是否明显大于多出的血量，以及接下来是否要打精英或 Boss。";
+        return "当前是休息点界面：" + hint + "只推荐 Room.Options 里可用的选项。";
+    }
 }
