@@ -111,6 +111,7 @@ public sealed class ChatClient : IDisposable
                     ? $"本界面需要选 {required} 张，ids 必须按优先级给出 {required} 个不同的可用 id（id 也要填第一个）；"
                     : "如果界面要求选多张牌，可以再加 \"ids\" 数组按优先级列出；") +
                 "只能使用 options 中出现的 id；locked 为 true 的不能选；拿不准时选最保守的可用项。" +
+                "options 里出现 id=skip 表示本次可以放弃获取（奖励、遗物等）；当继续获取会稀释牌组或没有实质提升时，优先考虑它。" +
                 CharacterGuidance.For(snapshot.Character) +
                 "run_plan 是玩家的长期策略（目标/姿态/偏好/指示），优先级高于你的默认偏好；如果与你的判断冲突，先服从玩家策略并在理由里简短说明风险。" +
                 "如果 player_directive 或 player_context 明确要求某个选项，必须优先满足它（只能是 options 里的 id）。" +

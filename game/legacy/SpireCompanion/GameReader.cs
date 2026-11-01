@@ -153,11 +153,15 @@ internal static class GameReader
         {
             var cards = SortedCardHolders(rewardScreen).Select(holder => holder.CardModel).OfType<CardModel>().ToArray();
             if (cards.Length > 0)
-                return new RoomView("Reward", "卡牌奖励", "选择一张加入牌组，或跳过",
-                    cards.Select((card, index) => new RoomOptionView(index.ToString(), Text(card.Title),
-                        $"费用 {(card.EnergyCost.CostsX ? "X" : card.EnergyCost.GetAmountToSpend().ToString())}" +
-                        (card.IsUpgraded ? " · 已升级" : "") + "：" + Shorten(CardText(card), 100), false)).ToArray())
+            {
+                var rewardOptions = cards.Select((card, index) => new RoomOptionView(index.ToString(), Text(card.Title),
+                    $"费用 {(card.EnergyCost.CostsX ? "X" : card.EnergyCost.GetAmountToSpend().ToString())}" +
+                    (card.IsUpgraded ? " · 已升级" : "") + "：" + Shorten(CardText(card), 100), false)).ToList();
+                // The skip button is a real, clickable action; without it the model can only ever add a card.
+                if (CanSkipReward()) rewardOptions.Add(new RoomOptionView("skip", "跳过这张奖励", "不加入牌组，继续前进", false));
+                return new RoomView("Reward", "卡牌奖励", "选择一张加入牌组，或跳过", rewardOptions.ToArray())
                     { Id = ScreenId(rewardScreen) };
+            }
         }
         switch (run.CurrentRoom)
         {

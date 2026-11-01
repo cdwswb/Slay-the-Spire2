@@ -971,6 +971,7 @@ internal sealed class CompanionPanel
         GD.Print($"[SpireCompanion] auto_action kind={room.Kind} id={id} room={room.Id} reason={reason}");
         switch (room.Kind)
         {
+            case "Reward" when id == "skip": ExecuteSkipReward(); break;
             case "Reward" when int.TryParse(id, out var index): ExecuteReward(index); break;
             case "Rest" or "Shop" when id == "proceed": ExecuteProceed(); break;
             case "Shop" when id == "open": ExecuteOpenShop(); break;
