@@ -934,9 +934,9 @@ internal sealed class CompanionPanel
 
     private static string Truncate(string value) => value.Length <= 200 ? value : value[..200];
 
-    /// <summary>Reward skip stays a real option, but never while the deck is still thin.</summary>
+    /// <summary>Reward skip stays a real option, but never while the deck is still thin (0 = unknown, don't judge).</summary>
     private static bool ShouldVetoRewardSkip(GameSnapshot snapshot) =>
-        snapshot.Room is { Kind: "Reward" } && snapshot.Deck.Length < RewardSkipFloor;
+        snapshot.Room is { Kind: "Reward" } && snapshot.Deck.Length is > 0 and < RewardSkipFloor;
 
     private const int RewardSkipFloor = 20;
 
